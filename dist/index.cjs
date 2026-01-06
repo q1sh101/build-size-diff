@@ -28672,6 +28672,140 @@ ${pendingInterceptorsFormatter.format(pending)}
       /***/
     },
 
+    /***/ 5344: /***/ (__unused_webpack_module, exports) => {
+      'use strict';
+
+      Object.defineProperty(exports, '__esModule', { value: true });
+      exports.diffBundles = diffBundles;
+      function diffBundles(
+        baseline,
+        current,
+        budgetKb,
+        warnKb = null,
+        failKb = null,
+        useGzip = true,
+        useBrotli = true
+      ) {
+        const compareMetric = useBrotli ? 'brotli' : useGzip ? 'gzip' : 'size';
+        const extractMetric = (stats) => {
+          if (compareMetric === 'brotli') return stats.totalBrotli;
+          if (compareMetric === 'gzip') return stats.totalGzip;
+          return stats.totalSize;
+        };
+        const extractFileMetric = (file) => {
+          if (compareMetric === 'brotli') return file.brotli;
+          if (compareMetric === 'gzip') return file.gzip;
+          return file.size;
+        };
+        if (!baseline) {
+          return {
+            baseline: null,
+            current,
+            diffSize: 0,
+            diffGzip: 0,
+            diffBrotli: 0,
+            diffMetric: 0,
+            diffPercent: 0,
+            diffPercentGzip: 0,
+            diffPercentBrotli: 0,
+            diffPercentSize: 0,
+            topChanges: [],
+            compareMetric,
+            status: 'no-baseline',
+            worstDeltaKb: 0,
+            thresholdStatus: 'ok',
+            thresholdMessage: null,
+            budgetMaxIncreaseKb: budgetKb,
+            warnAboveKb: warnKb,
+            failAboveKb: failKb,
+          };
+        }
+        const diffSize = current.totalSize - baseline.totalSize;
+        const diffGzip = current.totalGzip - baseline.totalGzip;
+        const diffBrotli = current.totalBrotli - baseline.totalBrotli;
+        const diffMetric = extractMetric(current) - extractMetric(baseline);
+        const diffPercentGzip =
+          baseline.totalGzip > 0 ? (diffGzip / baseline.totalGzip) * 100 : 0;
+        const diffPercentBrotli =
+          baseline.totalBrotli > 0
+            ? (diffBrotli / baseline.totalBrotli) * 100
+            : 0;
+        const diffPercentSize =
+          baseline.totalSize > 0 ? (diffSize / baseline.totalSize) * 100 : 0;
+        const diffPercent =
+          extractMetric(baseline) > 0
+            ? (diffMetric / extractMetric(baseline)) * 100
+            : 0;
+        const baselineMap = new Map(baseline.files.map((f) => [f.path, f]));
+        const currentPaths = new Set(current.files.map((f) => f.path));
+        const topChanges = [];
+        let maxPositiveDiff = 0;
+        for (const file of current.files) {
+          const baseFile = baselineMap.get(file.path);
+          const before = baseFile ? extractFileMetric(baseFile) : 0;
+          const after = extractFileMetric(file);
+          const diff = after - before;
+          if (diff !== 0) {
+            topChanges.push({ file: file.path, before, after, diff });
+          }
+          if (diff > maxPositiveDiff) {
+            maxPositiveDiff = diff;
+          }
+        }
+        for (const [filePath, baseFile] of baselineMap) {
+          if (!currentPaths.has(filePath)) {
+            topChanges.push({
+              file: filePath,
+              before: extractFileMetric(baseFile),
+              after: 0,
+              diff: -extractFileMetric(baseFile),
+            });
+          }
+        }
+        topChanges.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+        topChanges.splice(5);
+        const worstDeltaKb = Math.round((maxPositiveDiff / 1024) * 10) / 10;
+        let thresholdStatus = 'ok';
+        let thresholdMessage = null;
+        if (failKb !== null && worstDeltaKb >= failKb) {
+          thresholdStatus = 'fail';
+          thresholdMessage = `Largest file grew ${worstDeltaKb} KB (limit: ${failKb} KB)`;
+        } else if (warnKb !== null && worstDeltaKb >= warnKb) {
+          thresholdStatus = 'warn';
+          thresholdMessage = `Largest file grew ${worstDeltaKb} KB (warning: ${warnKb} KB)`;
+        }
+        let status = 'pass';
+        if (budgetKb !== null && diffMetric > budgetKb * 1024) {
+          status = 'fail';
+        } else if (thresholdStatus === 'fail') {
+          status = 'fail';
+        }
+        return {
+          baseline,
+          current,
+          diffSize,
+          diffGzip,
+          diffBrotli,
+          diffMetric,
+          diffPercent,
+          diffPercentGzip,
+          diffPercentBrotli,
+          diffPercentSize,
+          topChanges,
+          compareMetric,
+          status,
+          worstDeltaKb,
+          thresholdStatus,
+          thresholdMessage,
+          budgetMaxIncreaseKb: budgetKb,
+          warnAboveKb: warnKb,
+          failAboveKb: failKb,
+        };
+      }
+
+      /***/
+    },
+
     /***/ 9407: /***/ function (
       __unused_webpack_module,
       exports,
@@ -28744,12 +28878,16 @@ ${pendingInterceptorsFormatter.format(pending)}
       Object.defineProperty(exports, '__esModule', { value: true });
       const core = __importStar(__nccwpck_require__(7484));
       const build_1 = __nccwpck_require__(4323);
+      const compare_1 = __nccwpck_require__(5344);
       const scan_1 = __nccwpck_require__(4798);
       async function run() {
         try {
           const distPath = core.getInput('dist-path') || 'dist';
           const gzip = core.getInput('gzip') !== 'false';
           const brotli = core.getInput('brotli') !== 'false';
+          const budgetMaxIncreaseKb = readNumberInput('budget-max-increase-kb');
+          const warnAboveKb = readNumberInput('warn-above-kb');
+          const failAboveKb = readNumberInput('fail-above-kb');
           const buildCommand =
             core.getInput('build-command') || 'npm run build';
           const timeoutStr = core.getInput('build-timeout-minutes') || '15';
@@ -28775,15 +28913,36 @@ ${pendingInterceptorsFormatter.format(pending)}
             brotli
           );
           core.info(`Scanned ${current.files.length} files`);
+          const diff = (0, compare_1.diffBundles)(
+            null,
+            current,
+            budgetMaxIncreaseKb,
+            warnAboveKb,
+            failAboveKb,
+            gzip,
+            brotli
+          );
           core.setOutput('total-size', current.totalSize);
           core.setOutput('total-gzip', current.totalGzip);
           core.setOutput('total-brotli', current.totalBrotli);
+          core.setOutput('diff-size', diff.diffSize);
+          core.setOutput('diff-gzip', diff.diffGzip);
+          core.setOutput('diff-brotli', diff.diffBrotli);
           core.setOutput('status', 'pass');
         } catch (error) {
           const message =
             error instanceof Error ? error.message : String(error);
           core.setFailed(message);
         }
+      }
+      function readNumberInput(key) {
+        const value = core.getInput(key);
+        if (!value) return null;
+        const parsed = parseFloat(value);
+        if (!Number.isFinite(parsed)) {
+          throw new Error(`${key} must be a number (e.g., 10 or 0.5)`);
+        }
+        return parsed;
       }
       run();
 

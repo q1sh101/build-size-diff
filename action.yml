@@ -35,6 +35,15 @@ inputs:
     description: 'Calculate brotli sizes'
     required: false
     default: 'true'
+  budget-max-increase-kb:
+    description: 'Maximum allowed size increase in KB (e.g., 10 or 0.5)'
+    required: false
+  warn-above-kb:
+    description: 'Warn if any file grows more than this KB (e.g., 50)'
+    required: false
+  fail-above-kb:
+    description: 'Fail if any file grows more than this KB (e.g., 100)'
+    required: false
 
 outputs:
   total-size:
@@ -43,6 +52,12 @@ outputs:
     description: 'Total gzip size in bytes'
   total-brotli:
     description: 'Total brotli size in bytes'
+  diff-size:
+    description: 'Size difference in bytes'
+  diff-gzip:
+    description: 'Gzip size difference in bytes'
+  diff-brotli:
+    description: 'Brotli size difference in bytes'
   status:
     description: 'Status: pass'
 
