@@ -1,0 +1,22 @@
+{
+  "name": "build-size-diff",
+  "version": "1.0.0",
+  "description": "GitHub Action for bundle size scanning (baseline)",
+  "main": "dist/index.cjs",
+  "scripts": {
+    "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt && node scripts/postbuild.cjs",
+    "format": "prettier . --write",
+    "typecheck": "tsc --noEmit"
+  },
+  "author": "Giorgi Kishmareia <atomx101@outlook.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vercel/ncc": "^0.38.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0"
+  }
+}

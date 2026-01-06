@@ -1,0 +1,35 @@
+name: 'Build Size Diff'
+description: 'Automated bundle size scanning (baseline)'
+author: 'Giorgi Kishmareia'
+
+branding:
+  icon: 'package'
+  color: 'gray-dark'
+
+inputs:
+  dist-path:
+    description: 'Output directory to scan'
+    required: false
+    default: 'dist'
+  gzip:
+    description: 'Calculate gzip sizes'
+    required: false
+    default: 'true'
+  brotli:
+    description: 'Calculate brotli sizes'
+    required: false
+    default: 'true'
+
+outputs:
+  total-size:
+    description: 'Total bundle size in bytes'
+  total-gzip:
+    description: 'Total gzip size in bytes'
+  total-brotli:
+    description: 'Total brotli size in bytes'
+  status:
+    description: 'Status: pass'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.cjs'
