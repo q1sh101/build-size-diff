@@ -7,6 +7,22 @@ branding:
   color: 'gray-dark'
 
 inputs:
+  build-command:
+    description: 'Build command to run'
+    required: false
+    default: 'npm run build'
+  build-timeout-minutes:
+    description: 'Max minutes to allow build to run before failing'
+    required: false
+    default: '15'
+  allow-unsafe-build:
+    description: 'Allow build execution that requires a shell'
+    required: false
+    default: 'false'
+  fail-on-stderr:
+    description: 'Fail build if stderr output is non-empty'
+    required: false
+    default: 'false'
   dist-path:
     description: 'Output directory to scan'
     required: false
