@@ -23,6 +23,9 @@ inputs:
     description: 'Fail build if stderr output is non-empty'
     required: false
     default: 'false'
+  github-token:
+    description: 'GitHub token for artifact access'
+    required: true
   dist-path:
     description: 'Output directory to scan'
     required: false
@@ -59,7 +62,7 @@ outputs:
   diff-brotli:
     description: 'Brotli size difference in bytes'
   status:
-    description: 'Status: pass'
+    description: 'Status: pass, fail, no-baseline, or baseline-updated'
 
 runs:
   using: 'node20'
