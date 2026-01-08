@@ -73,6 +73,17 @@ export async function scanDirectory(
   };
 }
 
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(Math.abs(bytes)) / Math.log(k));
+  const unitIndex = Math.min(i, sizes.length - 1);
+  const value = bytes / Math.pow(k, unitIndex);
+  const sign = bytes < 0 ? '-' : '';
+  return `${sign}${Math.abs(value).toFixed(2)} ${sizes[unitIndex]}`;
+}
+
 async function getCompressedSize(
   filePath: string,
   mode: 'gzip' | 'brotli'

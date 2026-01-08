@@ -47,6 +47,14 @@ inputs:
   fail-above-kb:
     description: 'Fail if any file grows more than this KB (e.g., 100)'
     required: false
+  comment-mode:
+    description: 'When to comment: always, on-increase, never'
+    required: false
+    default: 'always'
+  fail-on-comment-error:
+    description: 'Fail workflow if PR comment cannot be posted'
+    required: false
+    default: 'false'
 
 outputs:
   total-size:
