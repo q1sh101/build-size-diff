@@ -3,6 +3,7 @@ import * as github from '@actions/github';
 import { executeBuild, installDeps } from './build';
 import { diffBundles } from './compare';
 import { fetchBaselineArtifact, saveBaselineArtifact } from './artifact';
+import { updatePRComment, writeJobSummary } from './comment';
 import { scanDirectory } from './scan';
 import { BundleStats, DiffResult } from './types';
 
@@ -24,6 +25,12 @@ async function run(): Promise<void> {
     }
     const allowUnsafeBuild = core.getInput('allow-unsafe-build') === 'true';
     const failOnStderr = core.getInput('fail-on-stderr') === 'true';
+    const commentMode = core.getInput('comment-mode') || 'always';
+    if (!['always', 'on-increase', 'never'].includes(commentMode)) {
+      throw new Error('comment-mode must be: always, on-increase, or never');
+    }
+    const failOnCommentError =
+      core.getInput('fail-on-comment-error') === 'true';
 
     await installDeps();
     await executeBuild(
@@ -44,6 +51,7 @@ async function run(): Promise<void> {
     if (isMain && !isPR) {
       const baseline = await fetchBaselineArtifact(githubToken);
       await saveBaselineArtifact(current);
+      await writeJobSummary(current, baseline);
       core.info('Baseline updated');
       publishOutputs(current, null, 'baseline-updated');
       return;
@@ -60,7 +68,24 @@ async function run(): Promise<void> {
       brotli
     );
 
+    if (isPR) {
+      await updatePRComment(
+        githubToken,
+        diff,
+        commentMode as 'always' | 'on-increase' | 'never',
+        failOnCommentError
+      );
+    }
+
     publishOutputs(current, diff, diff.status);
+
+    if (diff.status === 'fail') {
+      if (diff.thresholdStatus === 'fail') {
+        core.setFailed(diff.thresholdMessage || 'Size threshold exceeded');
+      } else {
+        core.setFailed('Bundle size budget exceeded');
+      }
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     core.setFailed(message);
