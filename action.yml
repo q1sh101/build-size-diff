@@ -27,9 +27,8 @@ inputs:
     description: 'GitHub token for artifact access'
     required: true
   dist-path:
-    description: 'Output directory to scan'
+    description: 'Output directory to scan. If omitted, auto-detection is used (e.g., dist, build, out, .next)'
     required: false
-    default: 'dist'
   gzip:
     description: 'Calculate gzip sizes'
     required: false

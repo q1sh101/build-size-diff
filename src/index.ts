@@ -4,12 +4,21 @@ import { executeBuild, installDeps } from './build';
 import { diffBundles } from './compare';
 import { fetchBaselineArtifact, saveBaselineArtifact } from './artifact';
 import { updatePRComment, writeJobSummary } from './comment';
+import { locateBuildOutput } from './autodetect';
 import { scanDirectory } from './scan';
 import { BundleStats, DiffResult } from './types';
 
 async function run(): Promise<void> {
   try {
-    const distPath = core.getInput('dist-path') || 'dist';
+    const userProvidedPath = core.getInput('dist-path');
+    const outputPath = locateBuildOutput(userProvidedPath);
+    if (!outputPath) {
+      throw new Error(
+        'Could not auto-detect output directory. ' +
+          'Please specify dist-path input (e.g., dist, build, out).'
+      );
+    }
+    const distPath = outputPath.path;
     const gzip = core.getInput('gzip') !== 'false';
     const brotli = core.getInput('brotli') !== 'false';
     const budgetMaxIncreaseKb = readNumberInput('budget-max-increase-kb');
@@ -39,6 +48,13 @@ async function run(): Promise<void> {
       failOnStderr,
       allowUnsafeBuild
     );
+
+    core.info(
+      `Using output path: ${outputPath.path} (mode: ${outputPath.mode})`
+    );
+    if (outputPath.mode === 'auto') {
+      core.info(`Auto-detection: ${outputPath.reason}`);
+    }
 
     const current = await scanDirectory(distPath, gzip, brotli);
     core.info(`Scanned ${current.files.length} files`);
