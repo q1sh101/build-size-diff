@@ -106,10 +106,10 @@ export function diffBundles(
 
   if (failKb !== null && worstDeltaKb >= failKb) {
     thresholdStatus = 'fail';
-    thresholdMessage = `Largest file grew ${worstDeltaKb} KB (limit: ${failKb} KB)`;
+    thresholdMessage = `Largest file +${worstDeltaKb} KB (fail at ${failKb} KB)`;
   } else if (warnKb !== null && worstDeltaKb >= warnKb) {
     thresholdStatus = 'warn';
-    thresholdMessage = `Largest file grew ${worstDeltaKb} KB (warning: ${warnKb} KB)`;
+    thresholdMessage = `Largest file +${worstDeltaKb} KB (warn at ${warnKb} KB / fail at ${failKb ?? '-'} KB)`;
   }
 
   let status: DiffResult['status'] = 'pass';

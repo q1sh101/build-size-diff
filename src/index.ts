@@ -1,71 +1,82 @@
 import * as core from '@actions/core';
 import * as github from '@actions/github';
+import { ActionInputs, BundleStats, DiffResult } from './types';
 import { executeBuild, installDeps } from './build';
+import { scanDirectory } from './scan';
 import { diffBundles } from './compare';
-import { fetchBaselineArtifact, saveBaselineArtifact } from './artifact';
+import { saveBaselineArtifact, fetchBaselineArtifact } from './artifact';
 import { updatePRComment, writeJobSummary } from './comment';
 import { locateBuildOutput } from './autodetect';
-import { scanDirectory } from './scan';
-import { BundleStats, DiffResult } from './types';
 
 async function run(): Promise<void> {
   try {
-    const userProvidedPath = core.getInput('dist-path');
-    const outputPath = locateBuildOutput(userProvidedPath);
-    if (!outputPath) {
-      throw new Error(
-        'Could not auto-detect output directory. ' +
-          'Please specify dist-path input (e.g., dist, build, out).'
+    const inputs = readActionInputs();
+
+    const eventName = github.context.eventName;
+    if (eventName === 'pull_request_target') {
+      core.warning(
+        'Running on pull_request_target. Workflow runs from base branch but checks out PR code. ' +
+          'Ensure build-command does not execute untrusted scripts from PR. ' +
+          'See: https://securitylab.github.com/research/github-actions-preventing-pwn-requests/'
       );
     }
-    const distPath = outputPath.path;
-    const gzip = core.getInput('gzip') !== 'false';
-    const brotli = core.getInput('brotli') !== 'false';
-    const budgetMaxIncreaseKb = readNumberInput('budget-max-increase-kb');
-    const warnAboveKb = readNumberInput('warn-above-kb');
-    const failAboveKb = readNumberInput('fail-above-kb');
-    const buildCommand = core.getInput('build-command') || 'npm run build';
-    const timeoutStr = core.getInput('build-timeout-minutes') || '15';
-    const timeoutMinutes = parseInt(timeoutStr, 10);
-    if (isNaN(timeoutMinutes) || timeoutMinutes <= 0) {
-      throw new Error(
-        'build-timeout-minutes must be a positive integer (e.g., 30)'
+    if (eventName === 'workflow_run') {
+      core.warning(
+        'Running on workflow_run event. This may have unexpected artifact access permissions. ' +
+          'Recommended: Use pull_request trigger for PR workflows.'
       );
     }
-    const allowUnsafeBuild = core.getInput('allow-unsafe-build') === 'true';
-    const failOnStderr = core.getInput('fail-on-stderr') === 'true';
-    const commentMode = core.getInput('comment-mode') || 'always';
-    if (!['always', 'on-increase', 'never'].includes(commentMode)) {
-      throw new Error('comment-mode must be: always, on-increase, or never');
-    }
-    const failOnCommentError =
-      core.getInput('fail-on-comment-error') === 'true';
 
-    await installDeps();
-    await executeBuild(
-      buildCommand,
-      timeoutMinutes * 60 * 1000,
-      failOnStderr,
-      allowUnsafeBuild
-    );
-
-    core.info(
-      `Using output path: ${outputPath.path} (mode: ${outputPath.mode})`
-    );
-    if (outputPath.mode === 'auto') {
-      core.info(`Auto-detection: ${outputPath.reason}`);
-    }
-
-    const current = await scanDirectory(distPath, gzip, brotli);
-    core.info(`Scanned ${current.files.length} files`);
-
-    const githubToken = core.getInput('github-token', { required: true });
     const isPR = !!github.context.payload.pull_request;
+
+    if (isPR && github.context.payload.pull_request) {
+      const pr = github.context.payload.pull_request;
+      const headRepo = pr.head.repo?.full_name;
+      const baseRepo = pr.base.repo?.full_name;
+
+      if (headRepo && baseRepo && headRepo !== baseRepo) {
+        core.setFailed(
+          'Fork PRs not supported. This action requires "actions: read" permission on base repo. ' +
+            'See README for limitations.'
+        );
+        return;
+      }
+    }
+
     const ref = github.context.ref;
     const isMain = ref === 'refs/heads/main' || ref === 'refs/heads/master';
 
+    if (eventName === 'pull_request_target' && !inputs.allowUnsafeBuild) {
+      core.setFailed(
+        'pull_request_target is disabled by default for safety. ' +
+          'Set allow-unsafe-build: true to override if you understand the risks.'
+      );
+      return;
+    }
+    if (eventName === 'pull_request_target' && inputs.allowUnsafeBuild) {
+      core.warning(
+        'allow-unsafe-build is enabled on pull_request_target. ' +
+          'Build commands will execute untrusted PR code.'
+      );
+    }
+
+    await installDeps();
+    await executeBuild(
+      inputs.buildCommand,
+      inputs.buildTimeoutMs,
+      inputs.failOnStderr,
+      inputs.allowUnsafeBuild
+    );
+
+    const current = await scanDirectory(
+      inputs.distPath,
+      inputs.gzip,
+      inputs.brotli
+    );
+    core.info(`Scanned ${current.files.length} files`);
+
     if (isMain && !isPR) {
-      const baseline = await fetchBaselineArtifact(githubToken);
+      const baseline = await fetchBaselineArtifact(inputs.githubToken);
       await saveBaselineArtifact(current);
       await writeJobSummary(current, baseline);
       core.info('Baseline updated');
@@ -73,49 +84,124 @@ async function run(): Promise<void> {
       return;
     }
 
-    const baseline = await fetchBaselineArtifact(githubToken);
-    const diff = diffBundles(
-      baseline,
-      current,
-      budgetMaxIncreaseKb,
-      warnAboveKb,
-      failAboveKb,
-      gzip,
-      brotli
-    );
-
     if (isPR) {
-      await updatePRComment(
-        githubToken,
-        diff,
-        commentMode as 'always' | 'on-increase' | 'never',
-        failOnCommentError
+      const baseline = await fetchBaselineArtifact(inputs.githubToken);
+      const diff = diffBundles(
+        baseline,
+        current,
+        inputs.budgetMaxIncreaseKb,
+        inputs.warnAboveKb,
+        inputs.failAboveKb,
+        inputs.gzip,
+        inputs.brotli
       );
-    }
 
-    publishOutputs(current, diff, diff.status);
+      await updatePRComment(
+        inputs.githubToken,
+        diff,
+        inputs.commentMode,
+        inputs.failOnCommentError
+      );
+      publishOutputs(current, diff, diff.status);
 
-    if (diff.status === 'fail') {
-      if (diff.thresholdStatus === 'fail') {
-        core.setFailed(diff.thresholdMessage || 'Size threshold exceeded');
-      } else {
-        core.setFailed('Bundle size budget exceeded');
+      if (diff.status === 'fail') {
+        if (diff.thresholdStatus === 'fail') {
+          core.setFailed(diff.thresholdMessage || 'Size threshold exceeded');
+        } else {
+          core.setFailed('Bundle size budget exceeded');
+        }
       }
+      return;
     }
+
+    publishOutputs(current, null, 'pass');
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     core.setFailed(message);
   }
 }
 
-function readNumberInput(key: string): number | null {
+function readNumberInput(key: string, errorMessage: string): number | null {
   const value = core.getInput(key);
   if (!value) return null;
   const parsed = parseFloat(value);
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`${key} must be a number (e.g., 10 or 0.5)`);
-  }
+  if (!Number.isFinite(parsed)) throw new Error(errorMessage);
   return parsed;
+}
+
+function sanitizeNonNegative(value: number | null, key: string): number | null {
+  if (value === null) return null;
+  if (value < 0) {
+    core.warning(`${key} cannot be negative; ignoring.`);
+    return null;
+  }
+  return value;
+}
+
+function readActionInputs(): ActionInputs {
+  const budgetRaw = readNumberInput(
+    'budget-max-increase-kb',
+    'budget-max-increase-kb must be a number (e.g., 10 or 0.5)'
+  );
+  const warnRaw = readNumberInput(
+    'warn-above-kb',
+    'warn-above-kb must be a number (e.g., 50)'
+  );
+  const failRaw = readNumberInput(
+    'fail-above-kb',
+    'fail-above-kb must be a number (e.g., 100)'
+  );
+  const budget = sanitizeNonNegative(budgetRaw, 'budget-max-increase-kb');
+  const warn = sanitizeNonNegative(warnRaw, 'warn-above-kb');
+  const fail = sanitizeNonNegative(failRaw, 'fail-above-kb');
+
+  const commentMode = core.getInput('comment-mode') || 'always';
+  if (!['always', 'on-increase', 'never'].includes(commentMode)) {
+    throw new Error('comment-mode must be: always, on-increase, or never');
+  }
+
+  const userProvidedPath = core.getInput('dist-path');
+  const outputPath = locateBuildOutput(userProvidedPath);
+
+  if (!outputPath) {
+    throw new Error(
+      'Could not auto-detect output directory. ' +
+        'Please specify dist-path input (e.g., dist, build, out).'
+    );
+  }
+
+  core.info(`Using output path: ${outputPath.path} (mode: ${outputPath.mode})`);
+  if (outputPath.mode === 'auto') {
+    core.info(`Auto-detection: ${outputPath.reason}`);
+  }
+
+  const timeoutStr = core.getInput('build-timeout-minutes') || '15';
+  const timeoutMinutes = parseInt(timeoutStr, 10);
+  if (isNaN(timeoutMinutes) || timeoutMinutes <= 0) {
+    throw new Error(
+      'build-timeout-minutes must be a positive integer (e.g., 30)'
+    );
+  }
+
+  const allowUnsafeBuild = core.getInput('allow-unsafe-build') === 'true';
+  const failOnStderr = core.getInput('fail-on-stderr') === 'true';
+  const failOnCommentError = core.getInput('fail-on-comment-error') === 'true';
+
+  return {
+    buildCommand: core.getInput('build-command') || 'npm run build',
+    buildTimeoutMs: timeoutMinutes * 60 * 1000,
+    allowUnsafeBuild,
+    failOnStderr,
+    distPath: outputPath.path,
+    gzip: core.getInput('gzip') !== 'false',
+    brotli: core.getInput('brotli') !== 'false',
+    budgetMaxIncreaseKb: budget,
+    warnAboveKb: warn,
+    failAboveKb: fail,
+    commentMode: commentMode as ActionInputs['commentMode'],
+    failOnCommentError,
+    githubToken: core.getInput('github-token', { required: true }),
+  };
 }
 
 function publishOutputs(

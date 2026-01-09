@@ -41,3 +41,19 @@ export interface DiffResult {
   warnAboveKb: number | null;
   failAboveKb: number | null;
 }
+
+export interface ActionInputs {
+  buildCommand: string;
+  buildTimeoutMs: number;
+  allowUnsafeBuild: boolean;
+  failOnStderr: boolean;
+  distPath: string;
+  gzip: boolean;
+  brotli: boolean;
+  budgetMaxIncreaseKb: number | null;
+  warnAboveKb: number | null;
+  failAboveKb: number | null;
+  commentMode: 'always' | 'on-increase' | 'never';
+  failOnCommentError: boolean;
+  githubToken: string;
+}
