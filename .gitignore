@@ -6,3 +6,4 @@ pnpm-debug.log*
 .env
 .env.* 
 .DS_Store
+*.log

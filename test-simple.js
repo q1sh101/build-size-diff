@@ -64,11 +64,6 @@ try {
   console.log(`   Gzip:   ${(totalGzip / 1024).toFixed(2)} KB`);
   console.log(`   Brotli: ${(totalBrotli / 1024).toFixed(2)} KB`);
 
-  console.log('\nDiff logic (baseline = null) should yield zeros.');
-  console.log('diff-size: 0');
-  console.log('diff-gzip: 0');
-  console.log('diff-brotli: 0');
-
   console.log('\nTest passed! Action logic works correctly.');
 } catch (err) {
   console.error('Error:', err.message);
