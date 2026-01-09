@@ -1,0 +1,10 @@
+# Exclude compiled/generated files from language statistics
+dist/** linguist-generated
+*.min.js linguist-generated
+*.bundle.js linguist-generated
+
+# Exclude tooling and test files from language stats
+scripts/** linguist-vendored
+*.config.cjs linguist-vendored
+test-*.js linguist-vendored
+test-*.mjs linguist-vendored

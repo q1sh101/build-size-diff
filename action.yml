@@ -1,10 +1,10 @@
 name: 'Build Size Diff'
-description: 'Automated bundle size scanning (baseline)'
+description: 'Track bundle size on push/PRs. Auto-comment with gzip/brotli metrics. Works with Vite, Webpack, Next.js, and more.'
 author: 'Giorgi Kishmareia'
 
 branding:
-  icon: 'package'
-  color: 'gray-dark'
+  icon: 'trending-up'
+  color: 'green'
 
 inputs:
   build-command:
@@ -16,16 +16,13 @@ inputs:
     required: false
     default: '15'
   allow-unsafe-build:
-    description: 'Allow build execution that requires a shell'
+    description: 'Allow build execution on pull_request_target events (unsafe)'
     required: false
     default: 'false'
   fail-on-stderr:
     description: 'Fail build if stderr output is non-empty'
     required: false
     default: 'false'
-  github-token:
-    description: 'GitHub token for artifact access'
-    required: true
   dist-path:
     description: 'Output directory to scan. If omitted, auto-detection is used (e.g., dist, build, out, .next)'
     required: false
@@ -54,6 +51,9 @@ inputs:
     description: 'Fail workflow if PR comment cannot be posted'
     required: false
     default: 'false'
+  github-token:
+    description: 'GitHub token for PR comments and artifact access'
+    required: true
 
 outputs:
   total-size:
