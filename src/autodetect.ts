@@ -96,7 +96,13 @@ export function locateBuildOutput(
       for (const subDir of subDirs) {
         const subPath = path.join(monoPath, subDir);
         if (fs.statSync(subPath).isDirectory()) {
-          for (const outDir of ['dist', 'build', 'out']) {
+          for (const outDir of [
+            'dist',
+            'build',
+            'out',
+            '.next',
+            '.output/public',
+          ]) {
             const outputPath = path.join(subPath, outDir);
             if (
               fs.existsSync(outputPath) &&
