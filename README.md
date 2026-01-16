@@ -69,7 +69,7 @@ jobs:
 **On pull request:**
 
 1. Runs build from PR code
-2. Downloads baseline from default branch
+2. Downloads baseline from PR base branch
 3. Compares sizes file-by-file
 4. Posts comment with visual diff table
 5. Passes/fails based on budget thresholds

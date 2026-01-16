@@ -76,15 +76,15 @@ export async function saveBaselineArtifact(stats: BundleStats): Promise<void> {
 }
 
 export async function fetchBaselineArtifact(
-  token: string
+  token: string,
+  branches: string[]
 ): Promise<BundleStats | null> {
   const octokit = github.getOctokit(token);
   const { owner, repo } = github.context.repo;
 
   try {
-    const branches = new Set(['main', 'master']);
+    const branchSet = new Set(branches);
     let artifact: ArtifactItem | null = null;
-    let fallbackArtifact: ArtifactItem | null = null;
 
     for await (const response of octokit.paginate.iterator(
       octokit.rest.actions.listArtifactsForRepo,
@@ -97,9 +97,8 @@ export async function fetchBaselineArtifact(
       const artifacts = extractArtifacts(response.data);
       for (const item of artifacts) {
         if (item.name !== ARTIFACT_NAME || item.expired) continue;
-        if (!fallbackArtifact) fallbackArtifact = item;
         const headBranch = item.workflow_run?.head_branch;
-        if (headBranch && branches.has(headBranch)) {
+        if (headBranch && branchSet.has(headBranch)) {
           artifact = item;
           break;
         }
@@ -107,15 +106,8 @@ export async function fetchBaselineArtifact(
       if (artifact) break;
     }
 
-    if (!artifact && fallbackArtifact) {
-      artifact = fallbackArtifact;
-      core.info(
-        'Baseline artifact found, but branch metadata missing; using latest artifact.'
-      );
-    }
-
     if (!artifact) {
-      core.info('No baseline artifact found');
+      core.info(`No baseline artifact found for ${branches.join(', ')}`);
       return null;
     }
 

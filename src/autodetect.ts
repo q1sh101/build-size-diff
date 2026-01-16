@@ -89,13 +89,31 @@ export function locateBuildOutput(
   const monoRepoPaths = ['apps', 'packages'];
   const candidates: string[] = [];
 
+  const safeStatDir = (target: string): fs.Stats | null => {
+    try {
+      const stat = fs.statSync(target);
+      return stat.isDirectory() ? stat : null;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      core.warning(`Skipping unreadable path "${target}": ${message}`);
+      return null;
+    }
+  };
+
   for (const monoDir of monoRepoPaths) {
     const monoPath = path.join(repoRoot, monoDir);
-    if (fs.existsSync(monoPath) && fs.statSync(monoPath).isDirectory()) {
-      const subDirs = fs.readdirSync(monoPath);
+    if (safeStatDir(monoPath)) {
+      let subDirs: string[];
+      try {
+        subDirs = fs.readdirSync(monoPath);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        core.warning(`Skipping unreadable directory "${monoPath}": ${message}`);
+        continue;
+      }
       for (const subDir of subDirs) {
         const subPath = path.join(monoPath, subDir);
-        if (fs.statSync(subPath).isDirectory()) {
+        if (safeStatDir(subPath)) {
           for (const outDir of [
             'dist',
             'build',
@@ -104,10 +122,7 @@ export function locateBuildOutput(
             '.output/public',
           ]) {
             const outputPath = path.join(subPath, outDir);
-            if (
-              fs.existsSync(outputPath) &&
-              fs.statSync(outputPath).isDirectory()
-            ) {
+            if (safeStatDir(outputPath)) {
               if (!directoryHasAssets(outputPath)) continue;
               candidates.push(path.join(monoDir, subDir, outDir));
             }

@@ -44,7 +44,7 @@ async function run(): Promise<void> {
     }
 
     const ref = github.context.ref;
-    const isMain = ref === 'refs/heads/main' || ref === 'refs/heads/master';
+    const isMain = getDefaultBranchRefs().includes(ref);
 
     if (eventName === 'pull_request_target' && !inputs.allowUnsafeBuild) {
       core.setFailed(
@@ -76,7 +76,10 @@ async function run(): Promise<void> {
     core.info(`Scanned ${current.files.length} files`);
 
     if (isMain && !isPR) {
-      const baseline = await fetchBaselineArtifact(inputs.githubToken);
+      const baseline = await fetchBaselineArtifact(
+        inputs.githubToken,
+        getBaselineBranches()
+      );
       await saveBaselineArtifact(current);
       await writeJobSummary(current, baseline);
       core.info('Baseline updated');
@@ -85,7 +88,10 @@ async function run(): Promise<void> {
     }
 
     if (isPR) {
-      const baseline = await fetchBaselineArtifact(inputs.githubToken);
+      const baseline = await fetchBaselineArtifact(
+        inputs.githubToken,
+        getBaselineBranches()
+      );
       const diff = diffBundles(
         baseline,
         current,
@@ -186,7 +192,6 @@ function readActionInputs(): ActionInputs {
   const allowUnsafeBuild = core.getInput('allow-unsafe-build') === 'true';
   const failOnStderr = core.getInput('fail-on-stderr') === 'true';
   const failOnCommentError = core.getInput('fail-on-comment-error') === 'true';
-
   return {
     buildCommand: core.getInput('build-command') || 'npm run build',
     buildTimeoutMs: timeoutMinutes * 60 * 1000,
@@ -202,6 +207,22 @@ function readActionInputs(): ActionInputs {
     failOnCommentError,
     githubToken: core.getInput('github-token', { required: true }),
   };
+}
+
+function getBaselineBranches(): string[] {
+  const prBaseRef = github.context.payload.pull_request?.base?.ref;
+  if (prBaseRef) return [prBaseRef];
+  return getDefaultBranchNames();
+}
+
+function getDefaultBranchNames(): string[] {
+  const defaultBranch = github.context.payload.repository?.default_branch;
+  if (defaultBranch) return [defaultBranch];
+  return ['main', 'master'];
+}
+
+function getDefaultBranchRefs(): string[] {
+  return getDefaultBranchNames().map((name) => `refs/heads/${name}`);
 }
 
 function publishOutputs(

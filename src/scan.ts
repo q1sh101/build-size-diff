@@ -13,10 +13,13 @@ export async function scanDirectory(
   try {
     const stat = await fs.promises.stat(distPath);
     if (!stat.isDirectory()) {
+      throw new Error(`Path is not a directory: ${distPath}`);
+    }
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message.includes('ENOENT')) {
       throw new Error(`Directory not found: ${distPath}`);
     }
-  } catch {
-    throw new Error(`Directory not found: ${distPath}`);
+    throw error;
   }
 
   const files: FileStats[] = [];
@@ -94,19 +97,30 @@ async function getCompressedSize(
       mode === 'gzip' ? zlib.createGzip() : zlib.createBrotliCompress();
 
     let size = 0;
+    let settled = false;
 
-    source.on('error', (error) => {
+    const cleanup = (): void => {
       source.destroy();
+      compressor.destroy();
+    };
+
+    const fail = (error: unknown): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
       reject(error);
-    });
-    compressor.on('error', (error) => {
-      source.destroy();
-      reject(error);
-    });
+    };
+
+    source.on('error', fail);
+    compressor.on('error', fail);
     compressor.on('data', (chunk) => {
       size += chunk.length;
     });
-    compressor.on('end', () => resolve(size));
+    compressor.on('end', () => {
+      if (settled) return;
+      settled = true;
+      resolve(size);
+    });
 
     source.pipe(compressor);
   });
