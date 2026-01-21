@@ -55,5 +55,6 @@ export interface ActionInputs {
   failAboveKb: number | null;
   commentMode: 'always' | 'on-increase' | 'never';
   failOnCommentError: boolean;
+  skipInstall: boolean;
   githubToken: string;
 }

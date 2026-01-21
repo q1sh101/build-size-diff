@@ -60,7 +60,9 @@ async function run(): Promise<void> {
       );
     }
 
-    await installDeps();
+    if (!inputs.skipInstall) {
+      await installDeps();
+    }
     await executeBuild(
       inputs.buildCommand,
       inputs.buildTimeoutMs,
@@ -192,6 +194,7 @@ function readActionInputs(): ActionInputs {
   const allowUnsafeBuild = core.getInput('allow-unsafe-build') === 'true';
   const failOnStderr = core.getInput('fail-on-stderr') === 'true';
   const failOnCommentError = core.getInput('fail-on-comment-error') === 'true';
+  const skipInstall = core.getInput('skip-install') === 'true';
   return {
     buildCommand: core.getInput('build-command') || 'npm run build',
     buildTimeoutMs: timeoutMinutes * 60 * 1000,
@@ -205,6 +208,7 @@ function readActionInputs(): ActionInputs {
     failAboveKb: fail,
     commentMode: commentMode as ActionInputs['commentMode'],
     failOnCommentError,
+    skipInstall,
     githubToken: core.getInput('github-token', { required: true }),
   };
 }

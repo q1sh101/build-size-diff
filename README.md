@@ -122,6 +122,18 @@ jobs:
 
 If you use `pnpm`, ensure it's available on the runner (e.g., `corepack enable` or `pnpm/action-setup`) before running the action.
 
+### Skip Install (Prebuilt Output)
+
+If your build output already exists (e.g., `.next` is prebuilt), you can skip dependency installation and the build command:
+
+```yaml
+- uses: q1sh101/build-size-diff@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    skip-install: true
+    build-command: 'true'
+```
+
 ### Conditional Comments
 
 ```yaml
@@ -150,6 +162,7 @@ If you use `pnpm`, ensure it's available on the runner (e.g., `corepack enable` 
 | `allow-unsafe-build`     | No       | `false`         | Allow shell commands or `pull_request_target`    |
 | `fail-on-stderr`         | No       | `false`         | Fail build if stderr output is non-empty         |
 | `fail-on-comment-error`  | No       | `false`         | Fail workflow if PR comment cannot be posted     |
+| `skip-install`           | No       | `false`         | Skip dependency installation (use if prebuilt)   |
 
 **Comparison metric:** All budget and threshold checks use a single metric determined by:
 
