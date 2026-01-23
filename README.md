@@ -74,6 +74,8 @@ jobs:
 4. Posts comment with visual diff table
 5. Passes/fails based on budget thresholds
 
+Baseline lookup checks recent workflow runs on the PR base branch, then falls back to repo-wide artifact search capped by `max-artifact-pages`. If no baseline is found, the action reports `no-baseline`.
+
 **Performance:** Typical workflow overhead is a few seconds (build time excluded). Compression runs in parallel - handles massive projects effortlessly.
 
 ---
@@ -226,6 +228,13 @@ If auto-detection fails, set `dist-path` explicitly.
 
 **"No baseline found"**
 Push to your default branch first to create the baseline artifact.
+
+**"Reached max artifact search limit"**
+Your repo has many artifacts. Increase the search limit (default: `10`):
+
+```yaml
+max-artifact-pages: 20 # searches up to 2000 artifacts
+```
 
 **"Auto-detection failed"**
 Set `dist-path` explicitly:
